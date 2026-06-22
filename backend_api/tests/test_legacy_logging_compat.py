@@ -150,3 +150,41 @@ class TestLegacyLoggingCompat(TestCase):
 				"_code": "INVALID_JSON_BODY",
 			},
 		)
+
+	def test_calculator_invalid_json_maps_to_legacy_error_response(self):
+		calls = []
+
+		class FakeApiModule:
+			@staticmethod
+			def log():
+				def decorate(fn):
+					def wrapped(*args, **kwargs):
+						calls.append((args, kwargs))
+						return fn(*args, **kwargs)
+
+					return wrapped
+
+				return decorate
+
+		with (
+			patch("backend_api.api.core.logging.legacy_api", FakeApiModule),
+			patch("backend_api.api.core.decorators.legacy_log", log),
+		):
+			calculator_module = import_module("backend_api.api.calculator.calculate")
+			calculator_module = reload(calculator_module)
+			with (
+				patch("backend_api.api.core.request.frappe.request", SimpleNamespace(data="not-json")),
+				patch("backend_api.api.core.request.frappe.form_dict", {}),
+			):
+				result = calculator_module.calculate()
+
+		self.assertEqual(calls, [((), {})])
+		self.assertEqual(
+			result,
+			{
+				"_status_code": 400,
+				"_title": "Bad Request",
+				"_detail": "Invalid JSON body",
+				"_code": "INVALID_JSON_BODY",
+			},
+		)
