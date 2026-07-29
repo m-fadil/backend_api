@@ -1,10 +1,8 @@
 import math
 from typing import Any
 
+from backend_api.api.calculator.service import OPERATIONS
 from backend_api.api.core.exceptions import UnprocessableEntityException
-
-
-VALID_OPERATIONS = {"add", "subtract", "multiply", "divide"}
 
 
 def _require_value(data: dict[str, Any], key: str, code: str) -> Any:
@@ -33,12 +31,12 @@ def validate_calculation(data: dict[str, Any]) -> dict[str, Any]:
 		"right",
 		"INVALID_RIGHT_OPERAND",
 	)
-	operation = _require_value(data, "operation", "OPERATION_REQUIRED")
-	operation = operation.lower()
+	# str() dulu: payload JSON boleh mengirim tipe apa pun, harus jadi 422 bukan 500
+	operation = str(_require_value(data, "operation", "OPERATION_REQUIRED")).lower()
 
-	if operation not in VALID_OPERATIONS:
+	if operation not in OPERATIONS:
 		raise UnprocessableEntityException(
-			"operation must be one of: add, subtract, multiply, divide",
+			f"operation must be one of: {', '.join(OPERATIONS)}",
 			code="INVALID_OPERATION",
 		)
 

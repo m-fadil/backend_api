@@ -14,6 +14,9 @@ class ApiException(Exception):
 		super().__init__(message)
 		self.message = message
 		self.status_code = status_code
+		# nama yang dicari frappe/app.py:346 kalau exception ini lolos ke handler Frappe.
+		# Tanpa ini semua ApiException jadi 500, berapa pun status_code-nya.
+		self.http_status_code = status_code
 		self.code = code
 		self.payload = payload or {}
 

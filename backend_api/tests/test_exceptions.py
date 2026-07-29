@@ -17,6 +17,13 @@ class TestExceptions(TestCase):
 		self.assertEqual(error.code, "BROKEN")
 		self.assertEqual(error.payload, {"x": 1})
 
+	def test_api_exception_exposes_status_under_frappe_attribute_name(self):
+		"""frappe/app.py membaca `http_status_code`. Tanpa alias ini tiap ApiException
+		yang lolos ke handler Frappe jadi 500, berapa pun status_code-nya."""
+		for error in (BadRequestException(), UnprocessableEntityException(), InternalServerErrorException()):
+			with self.subTest(error=type(error).__name__):
+				self.assertEqual(error.http_status_code, error.status_code)
+
 	def test_http_exception_uses_default_status(self):
 		error = UnprocessableEntityException("bad input")
 

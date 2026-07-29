@@ -60,6 +60,30 @@ class TestLegacyLoggingCompat(TestCase):
 		)
 		self.assertEqual(captured["response"], result)
 
+	def test_legacy_log_is_built_per_call_not_at_decoration(self):
+		"""legacy_api.log() menyentuh frappe.session/validate_auth. Kalau dipanggil saat
+		decorate, session setup jalan sekali per worker dan terikat ke user pertama."""
+		built = []
+
+		class FakeApiModule:
+			@staticmethod
+			def log():
+				built.append(1)
+
+				def decorate(fn):
+					return fn
+
+				return decorate
+
+		with patch("backend_api.api.core.logging.legacy_api", FakeApiModule):
+			decorated = log()(lambda: "ok")
+			self.assertEqual(built, [])
+
+			decorated()
+			decorated()
+
+		self.assertEqual(len(built), 2)
+
 	def test_ping_endpoint_uses_legacy_log_decorator(self):
 		calls = []
 

@@ -10,7 +10,8 @@ def validate_create_customer(data: dict) -> dict:
 		)
 
 	email = data.get("email")
-	if email and "@" not in email:
+	# str() dulu: payload JSON boleh mengirim tipe apa pun, harus jadi 422 bukan 500
+	if email and "@" not in str(email):
 		raise UnprocessableEntityException("Invalid email", code="INVALID_EMAIL")
 
 	return data

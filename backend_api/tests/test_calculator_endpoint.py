@@ -1,43 +1,18 @@
-import importlib
 from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 
 from backend_api.api.calculator.dto import CalculateDTO
 from backend_api.api.core.exceptions import BadRequestException, UnprocessableEntityException
+from backend_api.tests import load_endpoint_module
 
 
 class TestCalculatorEndpoint(TestCase):
+	def setUp(self):
+		self.calls = []
+		self.module = load_endpoint_module("backend_api.api.calculator.calculate", self.calls)
+
 	def test_calculate_endpoint_is_importable_and_uses_decorator_bridge(self):
-		import backend_api.api.core.decorators as decorators
-
-		calls = []
-
-		def fake_log():
-			def decorate(fn):
-				def wrapped(*args, **kwargs):
-					calls.append((args, kwargs))
-					return fn(*args, **kwargs)
-
-				setattr(wrapped, "is_logged", True)
-				return wrapped
-
-			return decorate
-
-		def fake_whitelist(**options):
-			def decorate(fn):
-				fn.whitelist_options = options
-				return fn
-
-			return decorate
-
-		with (
-			patch.object(decorators, "legacy_log", fake_log),
-			patch.object(decorators.frappe, "whitelist", fake_whitelist),
-		):
-			module = importlib.import_module("backend_api.api.calculator.calculate")
-			module = importlib.reload(module)
-
 		with (
 			patch("backend_api.api.core.request.frappe.request", None),
 			patch(
@@ -45,11 +20,13 @@ class TestCalculatorEndpoint(TestCase):
 				{"left": " 8 ", "right": " 2 ", "operation": " divide ", "cmd": "ignored"},
 			),
 		):
-			result = module.calculate()
+			result = self.module.calculate()
 
-		self.assertEqual(calls, [((), {})])
-		self.assertEqual(module.calculate.whitelist_options, {"allow_guest": True})
-		self.assertTrue(module.calculate.is_logged)
+		self.assertEqual(self.calls, [((), {})])
+		self.assertEqual(
+			self.module.calculate.whitelist_options, {"allow_guest": True, "methods": ["GET", "POST"]}
+		)
+		self.assertTrue(self.module.calculate.is_logged)
 		self.assertEqual(
 			result,
 			{
@@ -61,36 +38,15 @@ class TestCalculatorEndpoint(TestCase):
 		)
 
 	def test_calculate_endpoint_builds_dto_from_json_body(self):
-		import backend_api.api.core.decorators as decorators
-
-		def fake_log():
-			def decorate(fn):
-				return fn
-
-			return decorate
-
-		def fake_whitelist(**_options):
-			def decorate(fn):
-				return fn
-
-			return decorate
-
-		with (
-			patch.object(decorators, "legacy_log", fake_log),
-			patch.object(decorators.frappe, "whitelist", fake_whitelist),
-		):
-			module = importlib.import_module("backend_api.api.calculator.calculate")
-			module = importlib.reload(module)
-
 		with (
 			patch(
 				"backend_api.api.core.request.frappe.request",
 				SimpleNamespace(data='{"left": 7, "right": 5, "operation": "add"}'),
 			),
 			patch("backend_api.api.core.request.frappe.form_dict", {}),
-			patch.object(module, "calculate_service", return_value={"result": 12.0}) as service,
+			patch.object(self.module, "calculate_service", return_value={"result": 12.0}) as service,
 		):
-			result = module.calculate()
+			result = self.module.calculate()
 
 		self.assertEqual(result, {"result": 12.0})
 		body = service.call_args.args[0]
@@ -100,8 +56,6 @@ class TestCalculatorEndpoint(TestCase):
 		self.assertEqual(body.operation, "add")
 
 	def test_calculate_endpoint_prefers_json_body_over_form_values(self):
-		module = importlib.import_module("backend_api.api.calculator.calculate")
-
 		with (
 			patch(
 				"backend_api.api.core.request.frappe.request",
@@ -112,7 +66,7 @@ class TestCalculatorEndpoint(TestCase):
 				{"left": "100", "right": "100", "operation": "add"},
 			),
 		):
-			result = module.calculate()
+			result = self.module.calculate()
 
 		self.assertEqual(result["result"], 6.0)
 		self.assertEqual(result["operation"], "subtract")
@@ -120,21 +74,17 @@ class TestCalculatorEndpoint(TestCase):
 		self.assertEqual(result["right"], 3.0)
 
 	def test_calculate_endpoint_rejects_missing_left(self):
-		module = importlib.import_module("backend_api.api.calculator.calculate")
-
 		with (
 			patch("backend_api.api.core.request.frappe.request", None),
 			patch("backend_api.api.core.request.frappe.form_dict", {"right": "2", "operation": "add"}),
 		):
 			with self.assertRaises(UnprocessableEntityException) as ctx:
-				module.calculate()
+				self.module.calculate()
 
 		self.assertEqual(ctx.exception.status_code, 422)
 		self.assertEqual(ctx.exception.code, "LEFT_REQUIRED")
 
 	def test_calculate_endpoint_rejects_invalid_operation(self):
-		module = importlib.import_module("backend_api.api.calculator.calculate")
-
 		with (
 			patch("backend_api.api.core.request.frappe.request", None),
 			patch(
@@ -143,14 +93,27 @@ class TestCalculatorEndpoint(TestCase):
 			),
 		):
 			with self.assertRaises(UnprocessableEntityException) as ctx:
-				module.calculate()
+				self.module.calculate()
+
+		self.assertEqual(ctx.exception.status_code, 422)
+		self.assertEqual(ctx.exception.code, "INVALID_OPERATION")
+
+	def test_calculate_endpoint_rejects_non_string_operation(self):
+		"""Body JSON bisa mengirim tipe apa pun; harus 422, bukan AttributeError jadi 500."""
+		with (
+			patch(
+				"backend_api.api.core.request.frappe.request",
+				SimpleNamespace(data='{"left": 1, "right": 2, "operation": 5}'),
+			),
+			patch("backend_api.api.core.request.frappe.form_dict", {}),
+		):
+			with self.assertRaises(UnprocessableEntityException) as ctx:
+				self.module.calculate()
 
 		self.assertEqual(ctx.exception.status_code, 422)
 		self.assertEqual(ctx.exception.code, "INVALID_OPERATION")
 
 	def test_calculate_endpoint_rejects_divide_by_zero(self):
-		module = importlib.import_module("backend_api.api.calculator.calculate")
-
 		with (
 			patch("backend_api.api.core.request.frappe.request", None),
 			patch(
@@ -159,27 +122,36 @@ class TestCalculatorEndpoint(TestCase):
 			),
 		):
 			with self.assertRaises(UnprocessableEntityException) as ctx:
-				module.calculate()
+				self.module.calculate()
 
 		self.assertEqual(ctx.exception.status_code, 422)
 		self.assertEqual(ctx.exception.code, "DIVIDE_BY_ZERO")
 
-	def test_calculate_endpoint_rejects_invalid_json_body(self):
-		module = importlib.import_module("backend_api.api.calculator.calculate")
+	def test_calculate_endpoint_allows_zero_operand_for_non_divide_operations(self):
+		"""right=0 hanya terlarang untuk divide; operasi lain tidak boleh ikut meledak."""
+		for operation, expected in (("add", 1.0), ("subtract", 1.0), ("multiply", 0.0)):
+			with self.subTest(operation=operation):
+				with (
+					patch("backend_api.api.core.request.frappe.request", None),
+					patch(
+						"backend_api.api.core.request.frappe.form_dict",
+						{"left": "1", "right": "0", "operation": operation},
+					),
+				):
+					self.assertEqual(self.module.calculate()["result"], expected)
 
+	def test_calculate_endpoint_rejects_invalid_json_body(self):
 		with (
 			patch("backend_api.api.core.request.frappe.request", SimpleNamespace(data="not-json")),
 			patch("backend_api.api.core.request.frappe.form_dict", {}),
 		):
 			with self.assertRaises(BadRequestException) as ctx:
-				module.calculate()
+				self.module.calculate()
 
 		self.assertEqual(ctx.exception.status_code, 400)
 		self.assertEqual(ctx.exception.code, "INVALID_JSON_BODY")
 
 	def test_calculate_endpoint_ignores_unknown_extra_fields(self):
-		module = importlib.import_module("backend_api.api.calculator.calculate")
-
 		with (
 			patch(
 				"backend_api.api.core.request.frappe.request",
@@ -187,7 +159,7 @@ class TestCalculatorEndpoint(TestCase):
 			),
 			patch("backend_api.api.core.request.frappe.form_dict", {}),
 		):
-			result = module.calculate()
+			result = self.module.calculate()
 
 		self.assertEqual(result["result"], 3.0)
 		self.assertEqual(result["operation"], "add")

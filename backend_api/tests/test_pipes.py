@@ -38,6 +38,14 @@ class TestPipes(TestCase):
 		self.assertEqual(ctx.exception.status_code, 422)
 		self.assertEqual(ctx.exception.code, "INVALID_EMAIL")
 
+	def test_validate_create_customer_rejects_non_string_email(self):
+		"""Body JSON bisa mengirim tipe apa pun; validator harus 422, bukan meledak jadi 500."""
+		with self.assertRaises(UnprocessableEntityException) as ctx:
+			validate_create_customer({"customer_name": "ACME", "email": 5})
+
+		self.assertEqual(ctx.exception.status_code, 422)
+		self.assertEqual(ctx.exception.code, "INVALID_EMAIL")
+
 	def test_run_default_pipes_preserves_non_string_values(self):
 		data = {"count": 1, "items": [" a "], "meta": {"name": " a "}, "active": True, "empty": None}
 

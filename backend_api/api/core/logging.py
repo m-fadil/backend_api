@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from collections.abc import Callable
 from typing import Any
 
@@ -47,8 +48,6 @@ def _to_legacy_error_response(exc: ApiException) -> dict[str, Any]:
 
 
 def log():
-	legacy_log = legacy_api.log()
-
 	def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
 		def adapted(*args: Any, **kwargs: Any) -> Any:
 			try:
@@ -56,6 +55,13 @@ def log():
 			except ApiException as exc:
 				return _to_legacy_error_response(exc)
 
-		return legacy_log(adapted)
+		# legacy_api.log() menyentuh frappe.session/validate_auth, jadi harus dipanggil
+		# per request. Dipanggil saat decorate = jalan sekali per worker, terikat ke
+		# user request pertama yang meng-import module ini.
+		@functools.wraps(fn)
+		def invoke(*args: Any, **kwargs: Any) -> Any:
+			return legacy_api.log()(adapted)(*args, **kwargs)
+
+		return invoke
 
 	return decorate

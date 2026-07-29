@@ -4,12 +4,10 @@ authors = [
     { name = "DAS", email = "digitalasiasolusindo@gmail.com"}
 ]
 description = "Rich API Backend"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
-dependencies = [
-    "api",
-]
+dependencies = []
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]
@@ -25,7 +23,6 @@ packages = []
 
 [tool.ruff]
 line-length = 110
-target-version = "py314"
 
 [tool.ruff.lint]
 select = [

@@ -8,8 +8,9 @@ import frappe
 
 from .exceptions import BadRequestException
 
-
-EMPTY_REQUEST_DATA = {"", b"", None}
+# tuple, bukan set: `in` harus pakai == supaya body bertipe unhashable (dict, list)
+# sampai ke pengecekan tipe di bawah, bukan mental jadi TypeError di guard ini.
+EMPTY_REQUEST_DATA = ("", b"", None)
 
 
 def _safe_frappe_value(owner: Any, name: str, default: Any) -> Any:

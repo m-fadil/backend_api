@@ -75,6 +75,28 @@ class TestRequest(TestCase):
 		self.assertEqual(ctx.exception.status_code, 400)
 		self.assertEqual(ctx.exception.code, "INVALID_JSON_BODY")
 
+	def test_get_request_data_accepts_dict_body(self):
+		"""Body yang sudah berupa dict dipakai apa adanya, bukan TypeError dari guard body kosong."""
+		fake_request = SimpleNamespace(data={"name": "dict-body"})
+
+		with (
+			patch("backend_api.api.core.request.frappe.request", fake_request),
+			patch("backend_api.api.core.request.frappe.form_dict", {}),
+		):
+			result = get_request_data()
+
+		self.assertEqual(result, {"name": "dict-body"})
+
+	def test_get_request_data_ignores_unsupported_body_types(self):
+		"""Tipe yang tidak dikenal diabaikan, tetap tidak boleh meledak di guard body kosong."""
+		for raw_body in ([1, 2], bytearray(b'{"name": "x"}'), 5):
+			with self.subTest(raw_body=raw_body):
+				with (
+					patch("backend_api.api.core.request.frappe.request", SimpleNamespace(data=raw_body)),
+					patch("backend_api.api.core.request.frappe.form_dict", {"name": "form"}),
+				):
+					self.assertEqual(get_request_data(), {"name": "form"})
+
 	def test_get_request_data_rejects_non_object_json_body(self):
 		fake_request = SimpleNamespace(data='["not", "object"]')
 

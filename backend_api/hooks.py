@@ -9,7 +9,7 @@ app_license = "mit"
 # ------------------
 
 required_apps = [
-	"api",
+	"apps/api",
 ]
 
 # Each item in the list will be shown as an app in the apps page
